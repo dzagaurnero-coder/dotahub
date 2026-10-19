@@ -1,0 +1,40 @@
+{
+  "name": "dotahub-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DotaHub — современная платформа виртуальных кейсов, апгрейдера и каталога предметов Dota 2",
+  "workspaces": [
+    "packages/shared",
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n SHARED,API,WEB -c cyan,green,magenta \"npm run dev --workspace=@dotahub/shared\" \"npm run dev --workspace=@dotahub/api\" \"npm run dev --workspace=@dotahub/web\"",
+    "dev:api": "npm run dev --workspace=@dotahub/api",
+    "dev:web": "npm run dev --workspace=@dotahub/web",
+    "build": "npm run build --workspace=@dotahub/shared && npm run build --workspace=@dotahub/api && npm run build --workspace=@dotahub/web",
+    "start": "npm run start --workspace=@dotahub/api",
+    "db:generate": "prisma generate --schema=prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema=prisma/schema.prisma",
+    "db:push": "prisma db push --schema=prisma/schema.prisma",
+    "db:seed": "tsx prisma/seed.ts",
+    "import": "tsx scripts/import-items.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "concurrently": "^8.2.2",
+    "prisma": "^5.19.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.1"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

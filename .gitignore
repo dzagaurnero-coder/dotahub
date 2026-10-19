@@ -1,0 +1,43 @@
+# Зависимости
+node_modules/
+.pnp
+.pnp.js
+
+# Артефакты сборки и кеш компиляции
+dist/
+build/
+*.tsbuildinfo
+.vite/
+
+# Переменные окружения и секреты (шаблон .env.example НЕ игнорируется)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# Логи
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Тестирование и покрытие
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Редакторы и ОС
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Временные файлы
+tmp/
+temp/
