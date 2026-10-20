@@ -1,0 +1,374 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum CaseCategory {
+  budget
+  heroic
+  immortal
+  arcana
+  event
+  collector
+}
+
+enum ItemRarity {
+  common
+  uncommon
+  rare
+  mythical
+  legendary
+  ancient
+  immortal
+  arcana
+}
+
+enum ItemQuality {
+  standard
+  inscribed
+  exalted
+  corrupted
+  autographed
+  infused
+  genuine
+  auspicious
+  unusual
+  heroic
+  elder
+}
+
+enum InventoryItemStatus {
+  available
+  upgraded
+  consumed
+  sold
+}
+
+enum TransactionType {
+  deposit
+  case_opening
+  upgrader_bet
+  upgrader_win
+  item_sale
+  daily_bonus
+  promo_bonus
+  admin_adjustment
+}
+
+enum UpgraderAttemptStatus {
+  won
+  lost
+}
+
+model User {
+  id                    String   @id @default(uuid())
+  email                 String   @unique
+  username              String   @unique
+  display_name          String
+  password_hash         String
+  role                  UserRole @default(user)
+  demo_balance_minor    Int      @default(250000)
+  avatar_url            String?
+  steam_id              String?  @unique
+  steam_trade_url       String?
+  is_public_profile     Boolean  @default(true)
+  show_public_inventory Boolean  @default(true)
+  show_public_stats     Boolean  @default(true)
+  last_daily_bonus_at   DateTime?
+  provably_fair_nonce   Int      @default(0)
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  sessions              Session[]
+  inventory_items       InventoryItem[]
+  transactions          Transaction[]
+  favorite_cases        FavoriteCase[]
+  upgrader_attempts     UpgraderAttempt[]
+  case_openings         CaseOpening[]
+  promo_redemptions     PromoRedemption[]
+  idempotency_records   IdempotencyRecord[]
+  audit_logs            AuditLog[]
+
+  @@index([username])
+  @@index([email])
+  @@index([role])
+}
+
+model Session {
+  id          String   @id @default(uuid())
+  user_id     String
+  token_hash  String   @unique
+  csrf_token  String
+  ip_address  String?
+  user_agent  String?
+  expires_at  DateTime
+  created_at  DateTime @default(now())
+
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([token_hash])
+  @@index([expires_at])
+}
+
+model Hero {
+  id             String     @id @default(uuid())
+  slug           String     @unique
+  name           String
+  localized_name String
+  primary_attr   String?
+  image_url      String?
+  created_at     DateTime   @default(now())
+  updated_at     DateTime   @updatedAt
+
+  items          DotaItem[]
+
+  @@index([slug])
+}
+
+model DotaItem {
+  id                       String              @id @default(uuid())
+  external_def_id          String?             @unique
+  slug                     String              @unique
+  name                     String
+  localized_name           String
+  hero_id                  String?
+  hero_slug                String?
+  hero_name                String?
+  rarity                   ItemRarity          @default(common)
+  quality                  ItemQuality         @default(standard)
+  item_type                String              @default("weapon")
+  image_url                String
+  description              String?
+  estimated_value_minor    Int?
+  is_active                Boolean             @default(true)
+  created_at               DateTime            @default(now())
+  updated_at               DateTime            @updatedAt
+
+  hero                     Hero?               @relation(fields: [hero_id], references: [id], onDelete: SetNull)
+  case_pool_entries        CasePoolItem[]
+  inventory_items          InventoryItem[]
+  case_openings_won        CaseOpening[]       @relation("WonCaseItem")
+  upgrader_source_attempts UpgraderAttempt[]   @relation("SourceItem")
+  upgrader_target_attempts UpgraderAttempt[]   @relation("TargetItem")
+
+  @@index([slug])
+  @@index([hero_id])
+  @@index([hero_slug])
+  @@index([rarity])
+  @@index([quality])
+  @@index([item_type])
+  @@index([estimated_value_minor])
+}
+
+model CaseEntity {
+  id           String         @id @default(uuid())
+  slug         String         @unique
+  name         String
+  subtitle     String?
+  description  String?
+  category     CaseCategory   @default(budget)
+  price_minor  Int
+  image_url    String
+  is_featured  Boolean        @default(false)
+  is_active    Boolean        @default(true)
+  sort_order   Int            @default(0)
+  created_at   DateTime       @default(now())
+  updated_at   DateTime       @updatedAt
+
+  pool         CasePoolItem[]
+  favorites    FavoriteCase[]
+  openings     CaseOpening[]
+
+  @@index([slug])
+  @@index([category])
+  @@index([price_minor])
+  @@index([is_featured, sort_order])
+}
+
+model CasePoolItem {
+  id             String     @id @default(uuid())
+  case_id        String
+  item_id        String
+  weight         Int        @default(100)
+  chance_percent Float
+  created_at     DateTime   @default(now())
+
+  case_entity    CaseEntity @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  item           DotaItem   @relation(fields: [item_id], references: [id], onDelete: Cascade)
+
+  @@unique([case_id, item_id])
+  @@index([case_id])
+  @@index([item_id])
+}
+
+model InventoryItem {
+  id                String              @id @default(uuid())
+  user_id           String
+  item_id           String
+  status            InventoryItemStatus @default(available)
+  acquired_source   String              @default("case_open")
+  acquired_at       DateTime            @default(now())
+  updated_at        DateTime            @updatedAt
+
+  user              User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  item              DotaItem            @relation(fields: [item_id], references: [id], onDelete: Restrict)
+  case_openings     CaseOpening[]       @relation("CreatedInventoryItem")
+
+  @@index([user_id, status])
+  @@index([item_id])
+  @@index([acquired_at])
+}
+
+model CaseOpening {
+  id                  String         @id @default(uuid())
+  user_id             String
+  case_id             String
+  won_item_id         String
+  inventory_item_id   String?
+  price_minor         Int
+  roll_basis_points   Int
+  server_seed_hash    String
+  server_seed         String
+  client_seed         String
+  nonce               Int            @default(1)
+  created_at          DateTime       @default(now())
+
+  user                User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  case_entity         CaseEntity     @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  won_item            DotaItem       @relation("WonCaseItem", fields: [won_item_id], references: [id], onDelete: Restrict)
+  inventory_item      InventoryItem? @relation("CreatedInventoryItem", fields: [inventory_item_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([case_id])
+  @@index([won_item_id])
+  @@index([created_at])
+}
+
+model UpgraderAttempt {
+  id                       String                @id @default(uuid())
+  user_id                  String
+  source_inventory_item_id String
+  result_inventory_item_id String?
+  source_item_id           String
+  target_item_id           String
+  source_value_minor       Int
+  target_value_minor       Int
+  multiplier               Float
+  chance_percent           Float
+  roll_basis_points        Int
+  status                   UpgraderAttemptStatus
+  server_seed_hash         String
+  server_seed              String
+  client_seed              String
+  nonce                    Int                   @default(1)
+  created_at               DateTime              @default(now())
+
+  user                     User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  source_item              DotaItem              @relation("SourceItem", fields: [source_item_id], references: [id], onDelete: Restrict)
+  target_item              DotaItem              @relation("TargetItem", fields: [target_item_id], references: [id], onDelete: Restrict)
+
+  @@index([user_id, created_at])
+  @@index([status])
+}
+
+model Transaction {
+  id                  String          @id @default(uuid())
+  user_id             String
+  type                TransactionType
+  amount_minor        Int
+  balance_after_minor Int
+  description         String?
+  reference_id        String?
+  created_at          DateTime        @default(now())
+
+  user                User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
+  @@index([type])
+}
+
+model FavoriteCase {
+  id          String     @id @default(uuid())
+  user_id     String
+  case_id     String
+  created_at  DateTime   @default(now())
+
+  user        User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  case_entity CaseEntity @relation(fields: [case_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, case_id])
+  @@index([user_id])
+}
+
+model PromoCode {
+  id                  String            @id @default(uuid())
+  code                String            @unique
+  reward_amount_minor Int
+  max_uses            Int?
+  current_uses        Int               @default(0)
+  is_active           Boolean           @default(true)
+  expires_at          DateTime?
+  created_at          DateTime          @default(now())
+
+  redemptions         PromoRedemption[]
+
+  @@index([code])
+}
+
+model PromoRedemption {
+  id          String    @id @default(uuid())
+  user_id     String
+  promo_id    String
+  promo_code  String
+  redeemed_at DateTime  @default(now())
+
+  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  promo       PromoCode @relation(fields: [promo_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, promo_id])
+  @@unique([user_id, promo_code])
+  @@index([user_id])
+}
+
+model IdempotencyRecord {
+  id            String   @id @default(uuid())
+  key           String
+  user_id       String
+  endpoint      String
+  status_code   Int
+  response_json String
+  created_at    DateTime @default(now())
+  expires_at    DateTime
+
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, key])
+  @@index([expires_at])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  user_id     String?
+  action      String
+  entity_type String?
+  entity_id   String?
+  ip_address  String?
+  metadata    String?
+  created_at  DateTime @default(now())
+
+  user        User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([action])
+  @@index([created_at])
+}
